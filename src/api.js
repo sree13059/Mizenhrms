@@ -1,5 +1,7 @@
 const DEFAULT_API_BASE_URL = 'https://mizenbackendfile.onrender.com/api'
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '')
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL)
+  .replace(/\/$/, '')
+  .replace(/\/api\/?$/i, '/api')
 const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(`${API_BASE_URL}/`)
 
 export const authStorage = {
