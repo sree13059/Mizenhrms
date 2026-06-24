@@ -4343,6 +4343,12 @@
   transform: translateY(-1px);
 }
 
+.application-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+  transform: none;
+}
+
 .compact-departments {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

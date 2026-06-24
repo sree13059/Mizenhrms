@@ -278,7 +278,8 @@ function ManagementDashboard() {
             <div className="management-panel-heading"><div><span>Workforce</span><h2>Complete Employee Directory</h2></div><b>{data.employees.length} employees</b></div>
             <div className="management-employee-grid">
               {data.employees.map((employee) => {
-                const employeeLeaves = data.leaves.filter((leave) => leave.status === 'approved' && String(leave.employee?._id || leave.employee) === String(employee._id))
+                const currentYear = new Date().getFullYear()
+                const employeeLeaves = data.leaves.filter((leave) => leave.status === 'approved' && new Date(leave.fromDate).getFullYear() === currentYear && String(leave.employee?._id || leave.employee) === String(employee._id))
                 const used = employeeLeaves.reduce((total, leave) => total + leaveDays(leave), 0)
                 const annual = employee.annualLeaveAllowance || 20
                 return <article key={employee._id}>

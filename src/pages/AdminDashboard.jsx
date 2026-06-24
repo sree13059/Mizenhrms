@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
-import { apiRequest, authStorage } from '../api'
+import { apiRequest, authStorage, optionalApiRequest } from '../api'
 import logo from '../assets/images/logo.jpg'
 import { WEBSITE_URL } from '../config'
 
@@ -175,6 +175,7 @@ function AdminDashboard() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [error, setError] = useState('')
   const [applicationNotice, setApplicationNotice] = useState('')
+  const [notifyingApplicationId, setNotifyingApplicationId] = useState('')
   const [editingRegisterId, setEditingRegisterId] = useState('')
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm)
   const [editingApplicationId, setEditingApplicationId] = useState('')
@@ -231,7 +232,7 @@ function AdminDashboard() {
       ['applications', 'Applications', apiRequest('/admin/applications')],
       ['leaves', 'Leaves', apiRequest('/admin/leaves')],
       ['attendance', 'Attendance', apiRequest('/admin/attendance')],
-      ['meetings', 'Meetings', apiRequest('/admin/meetings')],
+      ['meetings', 'Meetings', optionalApiRequest('/admin/meetings', { meetings: [] })],
       ['projects', 'Projects', apiRequest('/admin/projects')],
       ['departments', 'Departments', apiRequest('/admin/departments')],
       ['services', 'Services', apiRequest('/admin/services')],
@@ -720,6 +721,25 @@ function AdminDashboard() {
       }
     } catch (err) {
       setError(err.message || 'Failed to update application')
+    }
+  }
+
+  const handleApplicationEmailRetry = async (application) => {
+    try {
+      setError('')
+      setApplicationNotice('')
+      setNotifyingApplicationId(application._id)
+      const data = await apiRequest(`/admin/applications/${application._id}/notify`, {
+        method: 'POST',
+      })
+
+      setApplicationNotice(data.emailNotification?.sent
+        ? `Email sent to ${application.email}.`
+        : `Email not sent: ${data.emailNotification?.reason || 'SMTP delivery failed'}.`)
+    } catch (err) {
+      setApplicationNotice(`Email not sent: ${err.message || 'SMTP delivery failed'}.`)
+    } finally {
+      setNotifyingApplicationId('')
     }
   }
 
@@ -1428,7 +1448,7 @@ function AdminDashboard() {
                     >
                       <div className="recent-employee-avatar">{employee.profilePhoto ? <img src={employee.profilePhoto} alt="" /> : (employee.fullName || 'E').slice(0, 1)}</div>
                       <div><b>{employee.fullName}</b><span>{employee.employeeId || 'Employee'}</span></div>
-                      <em>{balance.remaining}/{balance.annual} leaves</em>
+                      <em>{balance.remaining} leaves available</em>
                     </div>
                   )
                 })}
@@ -1517,7 +1537,7 @@ function AdminDashboard() {
                     <span>{employee.designation || 'Team Member'}</span>
                     <div className="employee-card-meta">
                       <small>{employee.experienceType === 'experienced' ? `${employee.experienceYears || 0} years experience` : 'Fresher'}</small>
-                      <small>{getEmployeeLeaveBalance(employee, leaves).remaining} of {getEmployeeLeaveBalance(employee, leaves).annual} leaves remaining</small>
+                      <small>{getEmployeeLeaveBalance(employee, leaves).remaining} leaves available out of {getEmployeeLeaveBalance(employee, leaves).annual}</small>
                     </div>
                     <p>{employee.department || 'Unassigned'} · {employee.email}</p>
                   </div>
@@ -1743,6 +1763,16 @@ function AdminDashboard() {
                           <option value="rejected">Rejected</option>
                         </select>
                         <div className="admin-row-actions application-actions">
+                          {['shortlisted', 'rejected'].includes(application.status) && (
+                            <button
+                              disabled={notifyingApplicationId === application._id}
+                              onClick={() => handleApplicationEmailRetry(application)}
+                              title={`Resend ${application.status} email`}
+                              type="button"
+                            >
+                              <i className={`bi ${notifyingApplicationId === application._id ? 'bi-hourglass-split' : 'bi-envelope-arrow-up-fill'}`} aria-hidden="true"></i>
+                            </button>
+                          )}
                           <button onClick={() => handleEditApplication(application)} title="Edit application" type="button">
                             <i className="bi bi-pencil-square" aria-hidden="true"></i>
                           </button>

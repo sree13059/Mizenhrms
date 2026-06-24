@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
-  || (import.meta.env.DEV ? 'http://localhost:5000/api' : 'https://mizenbackendfile.onrender.com/api')
+const DEFAULT_API_BASE_URL = 'https://mizenbackendfile.onrender.com/api'
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '')
+const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(`${API_BASE_URL}/`)
 
 export const authStorage = {
   getToken() {
@@ -47,17 +48,28 @@ export async function apiRequest(path, options = {}) {
     })
   } catch {
     throw new Error(
-      import.meta.env.DEV
+      isLocalApi
         ? 'HRMS Backend is offline. Start the Backend on localhost:5000 and try again.'
-        : 'Unable to connect to the HRMS service. Please try again shortly.',
+        : 'Unable to connect to the deployed HRMS Backend. Render may be waking up; please try again shortly.',
     )
   }
 
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok || data.success === false) {
-    throw new Error(data.message || `${response.status} ${response.statusText || 'Request failed'}: ${path}`)
+    const error = new Error(data.message || `${response.status} ${response.statusText || 'Request failed'}: ${path}`)
+    error.status = response.status
+    throw error
   }
 
   return data
+}
+
+export async function optionalApiRequest(path, fallback, options = {}) {
+  try {
+    return await apiRequest(path, options)
+  } catch (error) {
+    if (error.status === 404) return fallback
+    throw error
+  }
 }

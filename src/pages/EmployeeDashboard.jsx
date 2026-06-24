@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { apiRequest, authStorage } from '../api'
+import { apiRequest, authStorage, optionalApiRequest } from '../api'
 import logo from '../assets/images/logo.jpg'
 import { WEBSITE_URL } from '../config'
 
@@ -99,7 +99,7 @@ function EmployeeDashboard() {
       apiRequest('/admin/company'),
       apiRequest('/admin/leaves'),
       apiRequest('/admin/attendance'),
-      apiRequest('/admin/meetings'),
+      optionalApiRequest('/admin/meetings', { meetings: [] }),
     ])
 
     return {

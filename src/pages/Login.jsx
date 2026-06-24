@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest, authStorage } from "../api";
-import { WEBSITE_URL } from "../config";
 import logo from "../assets/images/logo.jpg";
 
 const ADMIN_USERNAME = "Mizentechsolutions";
@@ -97,6 +96,7 @@ function Login() {
       <style>{`
         .login-page{
           min-height:100vh;
+          min-height:100dvh;
           background:
             radial-gradient(circle at 12% 18%, rgba(111,182,83,.2), transparent 25%),
             radial-gradient(circle at 88% 82%, rgba(23,67,111,.18), transparent 28%),
@@ -104,7 +104,7 @@ function Login() {
           display:flex;
           justify-content:center;
           align-items:center;
-          padding:42px 18px;
+          padding:clamp(18px, 4vw, 42px) 18px;
         }
 
         .login-card{
@@ -116,6 +116,16 @@ function Login() {
           box-shadow:0 24px 70px rgba(23,67,111,.14);
           border:1px solid rgba(255,255,255,.8);
           animation:fadeUp .8s ease;
+        }
+
+        .login-card-grid{
+          display:grid;
+          grid-template-columns:minmax(0, 5fr) minmax(0, 7fr);
+        }
+
+        .login-brand-column,
+        .login-form-column{
+          min-width:0;
         }
 
         @keyframes fadeUp{
@@ -244,6 +254,19 @@ function Login() {
         .login-right{
           padding:58px 52px;
           background:#fff;
+          display:flex;
+          align-items:center;
+          min-height:640px;
+        }
+
+        .login-form-content{
+          margin:0 auto;
+          max-width:540px;
+          width:100%;
+        }
+
+        .login-mobile-brand{
+          display:none;
         }
 
         .form-title{
@@ -320,6 +343,10 @@ function Login() {
           display:grid;
           gap:12px;
           grid-template-columns:repeat(3, minmax(0,1fr));
+        }
+
+        .login-role-select{
+          display:none;
         }
 
         .login-role-option{
@@ -423,21 +450,6 @@ function Login() {
           font-weight:600;
         }
 
-        .register-link{
-          text-align:center;
-          margin-top:20px;
-        }
-
-        .register-link a{
-          color:#6fb653;
-          text-decoration:none;
-          font-weight:600;
-        }
-
-        .register-link a:hover{
-          color:#17436f;
-        }
-
         .login-security-note{
           align-items:center;
           color:#8090a0;
@@ -449,25 +461,130 @@ function Login() {
 
         @media(max-width:768px){
 
+          .login-page{
+            align-items:center;
+            padding:16px;
+          }
+
+          .login-card{
+            border-radius:20px;
+            max-width:480px;
+          }
+
+          .login-card-grid{
+            grid-template-columns:1fr;
+          }
+
           .login-left{
             display:none;
           }
 
           .login-right{
-            padding:25px;
+            min-height:0;
+            padding:30px 24px;
+          }
+
+          .login-mobile-brand{
+            align-items:center;
+            color:#17436f;
+            display:flex;
+            gap:11px;
+            justify-content:center;
+            margin-bottom:24px;
+            text-align:left;
+          }
+
+          .login-mobile-brand img{
+            border:1px solid #dbe4ee;
+            border-radius:11px;
+            height:44px;
+            object-fit:cover;
+            width:44px;
+          }
+
+          .login-mobile-brand strong,
+          .login-mobile-brand span{
+            display:block;
+          }
+
+          .login-mobile-brand strong{
+            font-size:.95rem;
+          }
+
+          .login-mobile-brand span{
+            color:#74879a;
+            font-size:.7rem;
           }
 
           .form-title{
             text-align:center;
           }
+
+          .login-form-head{
+            margin-bottom:24px;
+            text-align:center;
+          }
+
+          .login-role-options{
+            display:none;
+          }
+
+          .login-role-select{
+            display:block;
+            position:relative;
+          }
+
+          .login-role-select i{
+            color:#6f8599;
+            font-size:17px;
+            left:17px;
+            pointer-events:none;
+            position:absolute;
+            top:18px;
+            z-index:1;
+          }
+
+          .login-field .login-role-select select{
+            appearance:none;
+            background:
+              linear-gradient(45deg, transparent 50%, #17436f 50%) calc(100% - 20px) 24px/6px 6px no-repeat,
+              linear-gradient(135deg, #f4faf2, #eef7ff);
+            cursor:pointer;
+            font-weight:700;
+            padding-left:46px;
+            padding-right:44px;
+          }
+        }
+
+        @media(max-width:420px){
+          .login-page{
+            padding:10px;
+          }
+
+          .login-right{
+            padding:24px 18px;
+          }
+
+          .form-title{
+            font-size:1.65rem;
+          }
+
+          .login-form{
+            gap:16px;
+          }
+
+          .login-field{
+            margin-bottom:14px;
+          }
+
         }
       `}</style>
 
       <div className="login-page">
         <div className="login-card">
-          <div className="row g-0">
+          <div className="login-card-grid">
 
-            <div className="col-md-5">
+            <div className="login-brand-column">
               <div className="login-left">
 
                 <div className="login-brand-lockup">
@@ -495,8 +612,15 @@ function Login() {
               </div>
             </div>
 
-          <div className="col-md-7">
+          <div className="login-form-column">
               <div className="login-right">
+
+                <div className="login-form-content">
+
+                <div className="login-mobile-brand">
+                  <img src={logo} alt="" aria-hidden="true" />
+                  <div><strong>Mizen Tech Solutions</strong><span>Human Resource Management System</span></div>
+                </div>
 
                 <div className="login-form-head">
                   <span>Welcome back</span>
@@ -507,11 +631,19 @@ function Login() {
                 <form className="login-form" onSubmit={handleSubmit}>
 
                   <div className="login-field">
-                    <label>Login As</label>
+                    <label htmlFor="login-role">Login As</label>
                     <div className="login-role-options" role="group" aria-label="Login role">
                       <button className={`login-role-option ${form.role === 'employee' ? 'active' : ''}`} name="role" onClick={handleChange} type="button" value="employee"><i className="bi bi-person-badge-fill"></i>Employee</button>
                       <button className={`login-role-option ${form.role === 'admin' ? 'active' : ''}`} name="role" onClick={handleChange} type="button" value="admin"><i className="bi bi-shield-lock-fill"></i>Admin</button>
                       <button className={`login-role-option ${form.role === 'management' ? 'active' : ''}`} name="role" onClick={handleChange} type="button" value="management"><i className="bi bi-bar-chart-fill"></i>Management</button>
+                    </div>
+                    <div className="login-role-select">
+                      <i className="bi bi-person-badge-fill" aria-hidden="true"></i>
+                      <select id="login-role" name="role" value={form.role} onChange={handleChange}>
+                        <option value="employee">Employee</option>
+                        <option value="admin">Admin</option>
+                        <option value="management">Management</option>
+                      </select>
                     </div>
                   </div>
 
@@ -570,14 +702,9 @@ function Login() {
 
                   <div className="login-security-note"><i className="bi bi-lock-fill"></i>Your session is protected and role restricted.</div>
 
-                  <div className="register-link">
-                    Looking for a job?{" "}
-                    <a href={`${WEBSITE_URL}/apply`}>
-                      Apply Now
-                    </a>
-                  </div>
-
                 </form>
+
+                </div>
 
               </div>
             </div>
