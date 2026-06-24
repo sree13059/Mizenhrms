@@ -1,4 +1,6 @@
-const DEFAULT_API_BASE_URL = 'https://mizenbackendfile.onrender.com/api'
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? 'http://localhost:5000/api'
+  : 'https://mizenbackendfile.onrender.com/api'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL)
   .replace(/\/$/, '')
   .replace(/\/api\/?$/i, '/api')
