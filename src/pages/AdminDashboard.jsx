@@ -174,6 +174,7 @@ function AdminDashboard() {
   const [savingProfilePhoto, setSavingProfilePhoto] = useState(false)
   const [savingAdminAttendance, setSavingAdminAttendance] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [error, setError] = useState('')
   const [applicationNotice, setApplicationNotice] = useState('')
   const [notifyingApplicationId, setNotifyingApplicationId] = useState('')
@@ -1065,8 +1066,19 @@ function AdminDashboard() {
   ]
 
   return (
-    <main className="admin-shell">
+    <main className={`admin-shell ${sidebarOpen ? 'menu-open' : ''}`}>
       <aside className="admin-sidebar">
+        <button
+          aria-expanded={sidebarOpen}
+          aria-label="Toggle admin menu"
+          className="admin-menu-toggle"
+          onClick={() => setSidebarOpen((current) => !current)}
+          type="button"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
         <a className="admin-brand" href={WEBSITE_URL}>
           <img src={logo} alt="Mizen Tech Solutions logo" />
           <span>
@@ -1080,7 +1092,10 @@ function AdminDashboard() {
             <button
               className={activeView === id ? 'active' : undefined}
               key={id}
-              onClick={() => setActiveView(id)}
+              onClick={() => {
+                setActiveView(id)
+                setSidebarOpen(false)
+              }}
               type="button"
             >
               <i className={`bi ${icon}`} aria-hidden="true"></i>

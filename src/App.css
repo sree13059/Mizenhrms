@@ -2429,6 +2429,50 @@
   box-shadow: 22px 0 70px rgba(8, 40, 68, 0.18);
 }
 
+.admin-menu-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  display: none;
+  height: 50px;
+  justify-content: center;
+  margin: 0 0 16px auto;
+  padding: 0;
+  position: relative;
+  width: 50px;
+}
+
+.admin-menu-toggle span {
+  background: #fff;
+  border-radius: 999px;
+  display: block;
+  height: 3px;
+  position: absolute;
+  transition: transform 240ms ease, opacity 180ms ease;
+  width: 24px;
+}
+
+.admin-menu-toggle span:nth-child(1) {
+  transform: translateY(-8px);
+}
+
+.admin-menu-toggle span:nth-child(3) {
+  transform: translateY(8px);
+}
+
+.admin-shell.menu-open .admin-menu-toggle span:nth-child(1) {
+  transform: rotate(45deg);
+}
+
+.admin-shell.menu-open .admin-menu-toggle span:nth-child(2) {
+  opacity: 0;
+}
+
+.admin-shell.menu-open .admin-menu-toggle span:nth-child(3) {
+  transform: rotate(-45deg);
+}
+
 .admin-brand {
   display: flex;
   align-items: center;
@@ -4815,9 +4859,27 @@
     min-height: auto;
   }
 
+  .admin-menu-toggle {
+    display: inline-flex;
+  }
+
   .admin-nav,
   .employee-nav {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-nav {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(-8px);
+    transition: max-height 300ms ease, opacity 220ms ease, transform 220ms ease;
+  }
+
+  .admin-shell.menu-open .admin-nav {
+    max-height: 760px;
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .admin-stat-grid {
