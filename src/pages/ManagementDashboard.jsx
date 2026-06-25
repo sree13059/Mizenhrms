@@ -31,6 +31,8 @@ const initialMeetingForm = {
   meetingLink: '', audience: 'all',
 }
 
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
+
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
   reader.onload = () => resolve(reader.result)
@@ -40,6 +42,12 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
 
 const formatDate = (value) => value ? new Date(value).toLocaleDateString() : '—'
 const formatTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+const toDateInputValue = (value) => value ? new Date(value).toISOString().slice(0, 10) : ''
+const isUpcomingMeeting = (meeting) => {
+  const meetingStartsAt = new Date(`${toDateInputValue(meeting.meetingDate)}T${meeting.meetingTime || '00:00'}`)
+  return meeting.status !== 'cancelled' && meetingStartsAt >= new Date()
+}
+
 const leaveDays = (leave) => {
   const from = new Date(leave.fromDate)
   const to = new Date(leave.toDate)
@@ -59,8 +67,11 @@ function ManagementDashboard() {
   const [error, setError] = useState('')
   const [employeeForm, setEmployeeForm] = useState(initialEmployeeForm)
   const [meetingForm, setMeetingForm] = useState(initialMeetingForm)
+  const [editingMeetingId, setEditingMeetingId] = useState('')
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
+  const [noticeView, setNoticeView] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     if (!isManagement) return undefined
@@ -96,6 +107,30 @@ function ManagementDashboard() {
     setData({ ...emptyData, ...response })
   }
 
+  const showNotice = (message, view = activeView) => {
+    setNotice(message)
+    setNoticeView(view)
+  }
+
+  const handleViewChange = (view) => {
+    setActiveView(view)
+    setNotice('')
+    setNoticeView('')
+    setSidebarOpen(false)
+  }
+
+  const handleRefreshData = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      await refreshOverview()
+    } catch (requestError) {
+      setError(requestError.message || 'Failed to refresh management data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleEmployeeChange = (event) => {
     const { name, value } = event.currentTarget
     setEmployeeForm((current) => ({
@@ -108,8 +143,8 @@ function ManagementDashboard() {
   const handleEmployeePhoto = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (file.size > 1024 * 1024) {
-      setError('Employee photo must be 1 MB or smaller')
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError('Employee photo must be 10 MB or smaller')
       return
     }
     const profilePhoto = await readFileAsDataUrl(file)
@@ -127,7 +162,7 @@ function ManagementDashboard() {
         body: JSON.stringify({ ...employeeForm, employeeId: employeeForm.employeeId || nextEmployeeId }),
       })
       setEmployeeForm(initialEmployeeForm)
-      setNotice('Employee credentials and HR profile created successfully.')
+      showNotice('Employee credentials and HR profile created successfully.', 'onboarding')
       await refreshOverview()
     } catch (requestError) {
       setError(requestError.message || 'Failed to create employee')
@@ -147,12 +182,13 @@ function ManagementDashboard() {
     try {
       setSaving(true)
       setError('')
-      const response = await apiRequest('/admin/meetings', {
-        method: 'POST',
+      const response = await apiRequest(editingMeetingId ? `/admin/meetings/${editingMeetingId}` : '/admin/meetings', {
+        method: editingMeetingId ? 'PUT' : 'POST',
         body: JSON.stringify(meetingForm),
       })
       setMeetingForm(initialMeetingForm)
-      setNotice(response.message || 'Meeting scheduled and message sent.')
+      setEditingMeetingId('')
+      showNotice(response.message || (editingMeetingId ? 'Meeting updated successfully.' : 'Meeting scheduled and message sent.'), 'meetings')
       await refreshOverview()
     } catch (requestError) {
       setError(requestError.message || 'Failed to schedule meeting')
@@ -164,6 +200,59 @@ function ManagementDashboard() {
   const handleLogout = () => {
     authStorage.clearSession()
     navigate('/login')
+  }
+
+  const handleEditMeeting = (meeting) => {
+    if (!isUpcomingMeeting(meeting)) return
+    setEditingMeetingId(meeting._id)
+    setMeetingForm({
+      title: meeting.title || '',
+      message: meeting.message || '',
+      meetingDate: toDateInputValue(meeting.meetingDate),
+      meetingTime: meeting.meetingTime || '',
+      durationMinutes: meeting.durationMinutes || 30,
+      meetingLink: meeting.meetingLink || '',
+      audience: meeting.audience || 'all',
+    })
+    handleViewChange('meetings')
+  }
+
+  const handleCancelMeetingEdit = () => {
+    setEditingMeetingId('')
+    setMeetingForm(initialMeetingForm)
+  }
+
+  const handleOpenEmployeeDashboard = (employee) => {
+    const employeeKey = String(employee._id || employee.id)
+    const belongsToEmployee = (entry) => String(entry.employee?._id || entry.employee?.id || entry.employee) === employeeKey
+    const stripAttendancePhoto = (entry) => ({
+      ...entry,
+      loginPhoto: '',
+      logoutPhoto: '',
+    })
+    const preview = {
+      employeeId: employeeKey,
+      user: { ...employee, id: employee._id || employee.id },
+      company: data.company || null,
+      leaves: data.leaves.filter(belongsToEmployee),
+      attendance: data.attendance.filter(belongsToEmployee).map(stripAttendancePhoto),
+    }
+    try {
+      localStorage.setItem('mizenManagementEmployeePreview', JSON.stringify(preview))
+    } catch {
+      localStorage.setItem('mizenManagementEmployeePreview', JSON.stringify({
+        ...preview,
+        user: { ...preview.user, profilePhoto: '' },
+      }))
+    }
+    navigate(`/employee?employeeId=${encodeURIComponent(employee._id || employee.id)}`)
+  }
+
+  const handleEmployeeCardKeyDown = (event, employee) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleOpenEmployeeDashboard(employee)
+    }
   }
 
   if (!isManagement) {
@@ -185,10 +274,34 @@ function ManagementDashboard() {
     ['bi-briefcase-fill', 'Open Jobs', data.summary.openJobs || 0, 'Active recruitment'],
     ['bi-kanban-fill', 'Active Projects', data.summary.activeProjects || 0, 'Current operations'],
   ]
+  const totalAnnualLeaves = data.employees.reduce((total, employee) => total + (Number(employee.annualLeaveAllowance) || 20), 0)
+  const hrDataCards = [
+    ['bi-building-fill', 'Departments', data.departments.length, 'Active company groups'],
+    ['bi-calendar2-heart-fill', 'Leave Capacity', totalAnnualLeaves, 'Annual employee days'],
+    ['bi-hourglass-split', 'Pending Leaves', data.summary.pendingLeaves || 0, 'Needs HR attention'],
+  ]
+  const adminDataCards = [
+    ['bi-shield-check', 'Admins', data.summary.admins || data.admins.length, 'HRMS control users'],
+    ['bi-person-workspace', 'Hiring Pipeline', data.applications.length, 'Candidate records'],
+    ['bi-megaphone-fill', 'Meetings', data.meetings.length, 'Scheduled messages'],
+  ]
+  const adminAttendance = data.attendance.filter((entry) => entry.employee?.role === 'admin')
+  const latestAdminAttendance = adminAttendance.slice(0, 5)
 
   return (
-    <div className="management-dashboard">
+    <div className={`management-dashboard ${sidebarOpen ? 'menu-open' : ''}`}>
       <aside className="management-sidebar">
+        <button
+          aria-expanded={sidebarOpen}
+          aria-label="Toggle management menu"
+          className="management-menu-toggle"
+          onClick={() => setSidebarOpen((current) => !current)}
+          type="button"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
         <a className="management-brand" href={WEBSITE_URL}>
           <img src={logo} alt="Mizen Tech Solutions" />
           <div><strong>Mizen</strong><span>Management Suite</span></div>
@@ -199,7 +312,7 @@ function ManagementDashboard() {
         </div>
         <nav>
           {views.map(([key, icon, label]) => (
-            <button className={activeView === key ? 'active' : ''} key={key} onClick={() => setActiveView(key)} type="button">
+            <button className={activeView === key ? 'active' : ''} key={key} onClick={() => handleViewChange(key)} type="button">
               <i className={`bi ${icon}`}></i><span>{label}</span>
             </button>
           ))}
@@ -210,11 +323,11 @@ function ManagementDashboard() {
       <main className="management-workspace">
         <header className="management-header">
           <div><span>Management intelligence</span><h1>{views.find(([key]) => key === activeView)?.[2]}</h1><p>{data.company?.name || 'Mizen Tech Solutions'} · Live HRMS data</p></div>
-          <button onClick={() => window.location.reload()} type="button"><i className="bi bi-arrow-clockwise"></i>Refresh Data</button>
+          <button disabled={loading} onClick={handleRefreshData} type="button"><i className="bi bi-arrow-clockwise"></i>Refresh Data</button>
         </header>
 
         {error && <div className="management-error"><i className="bi bi-exclamation-triangle-fill"></i>{error}</div>}
-        {notice && <div className="management-success"><i className="bi bi-check-circle-fill"></i>{notice}</div>}
+        {notice && noticeView === activeView && <div className="management-success"><i className="bi bi-check-circle-fill"></i>{notice}</div>}
         {loading && <div className="management-loading"><span></span><p>Preparing management insights...</p></div>}
 
         {!loading && activeView === 'overview' && (
@@ -224,17 +337,45 @@ function ManagementDashboard() {
             </section>
             <section className="management-two-column">
               <article className="management-panel">
-                <div className="management-panel-heading"><div><span>Today</span><h2>Attendance Snapshot</h2></div><button onClick={() => setActiveView('attendance')} type="button">View all</button></div>
+                <div className="management-panel-heading"><div><span>Today</span><h2>Attendance Snapshot</h2></div><button onClick={() => handleViewChange('attendance')} type="button">View all</button></div>
                 <div className="management-list">
                   {data.attendance.slice(0, 6).map((entry) => <div key={entry._id}><div className="management-avatar">{(entry.employee?.fullName || 'E')[0]}</div><div><strong>{entry.employee?.fullName || 'Employee'}</strong><span>{entry.employee?.role === 'admin' ? 'Admin attendance' : entry.employee?.employeeId || 'No ID'} · {entry.workDate}</span></div><em>{formatTime(entry.loginAt)}–{formatTime(entry.logoutAt)}</em></div>)}
                   {!data.attendance.length && <p className="management-empty">No attendance records available.</p>}
                 </div>
               </article>
               <article className="management-panel">
-                <div className="management-panel-heading"><div><span>HR queue</span><h2>Pending Leave Requests</h2></div><button onClick={() => setActiveView('leaves')} type="button">View all</button></div>
+                <div className="management-panel-heading"><div><span>HR queue</span><h2>Pending Leave Requests</h2></div><button onClick={() => handleViewChange('leaves')} type="button">View all</button></div>
                 <div className="management-list">
                   {data.leaves.filter((leave) => leave.status === 'pending').slice(0, 6).map((leave) => <div key={leave._id}><div className="management-avatar leave"><i className="bi bi-calendar-event"></i></div><div><strong>{leave.employee?.fullName || 'Employee'}</strong><span>{leave.type} · {formatDate(leave.fromDate)} to {formatDate(leave.toDate)}</span></div><em>{leaveDays(leave)} day{leaveDays(leave) === 1 ? '' : 's'}</em></div>)}
                   {!data.leaves.some((leave) => leave.status === 'pending') && <p className="management-empty">No pending leave requests.</p>}
+                </div>
+              </article>
+            </section>
+            <section className="management-insight-grid">
+              <article className="management-panel management-data-panel">
+                <div className="management-panel-heading"><div><span>HR Data</span><h2>People Operations</h2></div><b>{data.employees.length} profiles</b></div>
+                <div className="management-data-card-grid">
+                  {hrDataCards.map(([icon, label, value, detail]) => <div key={label}><i className={`bi ${icon}`}></i><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>)}
+                </div>
+              </article>
+              <article className="management-panel management-data-panel">
+                <div className="management-panel-heading"><div><span>Admin Data</span><h2>Governance</h2></div><b>{data.admins.length} admins</b></div>
+                <div className="management-admin-list">
+                  {data.admins.slice(0, 4).map((admin) => <div key={admin._id}><i className="bi bi-shield-check"></i><div><strong>{admin.fullName}</strong><span>{admin.designation || 'HR/Admin'} · {admin.email}</span></div></div>)}
+                  {!data.admins.length && <p className="management-empty">Admin profiles will appear here.</p>}
+                </div>
+              </article>
+              <article className="management-panel management-data-panel management-admin-attendance-panel">
+                <div className="management-panel-heading"><div><span>Admin Attendance</span><h2>HR Presence</h2></div><b>{adminAttendance.length} logs</b></div>
+                <div className="management-admin-attendance-list">
+                  {latestAdminAttendance.map((entry) => <div key={entry._id}><i className={`bi ${entry.status === 'checked-in' ? 'bi-person-check-fill' : 'bi-person-badge-fill'}`}></i><div><strong>{entry.employee?.fullName || 'Admin'}</strong><span>{formatDate(entry.loginAt)} · {formatTime(entry.loginAt)} to {formatTime(entry.logoutAt)}</span></div><em className={`management-status ${entry.status}`}>{entry.status}</em></div>)}
+                  {!latestAdminAttendance.length && <p className="management-empty">Admin attendance records will appear here.</p>}
+                </div>
+              </article>
+              <article className="management-panel management-data-panel">
+                <div className="management-panel-heading"><div><span>Company Pulse</span><h2>Executive Snapshot</h2></div><b>Live</b></div>
+                <div className="management-data-card-grid compact">
+                  {adminDataCards.map(([icon, label, value, detail]) => <div key={label}><i className={`bi ${icon}`}></i><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>)}
                 </div>
               </article>
             </section>
@@ -248,7 +389,7 @@ function ManagementDashboard() {
               <form className="management-form" onSubmit={handleCreateEmployee}>
                 <label className="management-photo-upload">
                   {employeeForm.profilePhoto ? <img src={employeeForm.profilePhoto} alt="Employee preview" /> : <i className="bi bi-camera-fill"></i>}
-                  <div><strong>{employeeForm.profilePhoto ? 'Photo selected' : 'Upload employee photo'}</strong><span>JPG/PNG up to 1 MB</span></div>
+                  <div><strong>{employeeForm.profilePhoto ? 'Photo selected' : 'Upload employee photo'}</strong><span>JPG/PNG up to 10 MB</span></div>
                   <input accept="image/*" onChange={handleEmployeePhoto} required={!employeeForm.profilePhoto} type="file" />
                 </label>
                 <div className="management-form-grid">
@@ -282,7 +423,15 @@ function ManagementDashboard() {
                 const employeeLeaves = data.leaves.filter((leave) => leave.status === 'approved' && new Date(leave.fromDate).getFullYear() === currentYear && String(leave.employee?._id || leave.employee) === String(employee._id))
                 const used = employeeLeaves.reduce((total, leave) => total + leaveDays(leave), 0)
                 const annual = employee.annualLeaveAllowance || 20
-                return <article key={employee._id}>
+                return <article
+                  aria-label={`Open ${employee.fullName}'s dashboard`}
+                  className="management-employee-card"
+                  key={employee._id}
+                  onClick={() => handleOpenEmployeeDashboard(employee)}
+                  onKeyDown={(event) => handleEmployeeCardKeyDown(event, employee)}
+                  role="button"
+                  tabIndex="0"
+                >
                   <div className="management-employee-head">{employee.profilePhoto ? <img src={employee.profilePhoto} alt="" /> : <span>{(employee.fullName || 'E')[0]}</span>}<div><strong>{employee.fullName}</strong><small>{employee.employeeId || 'No employee ID'}</small></div></div>
                   <dl><div><dt>Role</dt><dd>{employee.designation || 'Team member'}</dd></div><div><dt>Department</dt><dd>{employee.department || 'Unassigned'}</dd></div><div><dt>Email</dt><dd>{employee.email}</dd></div><div><dt>Phone</dt><dd>{employee.phone}</dd></div><div><dt>Experience</dt><dd>{employee.experienceType === 'experienced' ? `${employee.experienceYears || 0} years` : 'Fresher'}</dd></div><div><dt>Leave balance</dt><dd>{Math.max(0, annual - used)} / {annual} days</dd></div></dl>
                   {employee.previousCompanyName && <p><i className="bi bi-building"></i>Previously at {employee.previousCompanyName}</p>}
@@ -295,6 +444,10 @@ function ManagementDashboard() {
         {!loading && activeView === 'attendance' && (
           <section className="management-panel">
             <div className="management-panel-heading"><div><span>Work logs</span><h2>Attendance Records</h2></div><b>{data.attendance.length} records</b></div>
+            <div className="management-admin-attendance-strip">
+              {latestAdminAttendance.map((entry) => <article key={entry._id}><i className={`bi ${entry.status === 'checked-in' ? 'bi-person-check-fill' : 'bi-person-badge-fill'}`}></i><div><span>Admin</span><strong>{entry.employee?.fullName || 'Admin'}</strong><small>{formatDate(entry.loginAt)} · {formatTime(entry.loginAt)} to {formatTime(entry.logoutAt)}</small></div><em className={`management-status ${entry.status}`}>{entry.status}</em></article>)}
+              {!latestAdminAttendance.length && <p className="management-empty">No admin attendance records yet.</p>}
+            </div>
             <div className="management-table-wrap"><table><thead><tr><th>Employee / Admin</th><th>Date</th><th>Login</th><th>Logout</th><th>Hours</th><th>Status</th></tr></thead><tbody>{data.attendance.map((entry) => <tr key={entry._id}><td><strong>{entry.employee?.fullName || 'Team member'}</strong><small>{entry.employee?.role === 'admin' ? 'Administrator' : entry.employee?.employeeId}</small></td><td>{entry.workDate}</td><td>{formatTime(entry.loginAt)}</td><td>{formatTime(entry.logoutAt)}</td><td>{entry.totalHours ?? '—'}</td><td><span className={`management-status ${entry.status}`}>{entry.status}</span></td></tr>)}</tbody></table></div>
           </section>
         )}
@@ -323,7 +476,7 @@ function ManagementDashboard() {
         {!loading && activeView === 'meetings' && (
           <section className="management-two-column">
             <article className="management-panel">
-              <div className="management-panel-heading"><div><span>Communication</span><h2>Schedule a Meeting</h2></div><b>Management</b></div>
+              <div className="management-panel-heading"><div><span>Communication</span><h2>{editingMeetingId ? 'Edit Meeting' : 'Schedule a Meeting'}</h2></div><b>{editingMeetingId ? 'Editing' : 'Management'}</b></div>
               <form className="management-form" onSubmit={handleScheduleMeeting}>
                 <div className="meeting-audience-choice">
                   {[['all', 'bi-people-fill', 'Admin + Employees'], ['admin', 'bi-shield-fill-check', 'Admins'], ['employee', 'bi-person-badge-fill', 'Employees']].map(([value, icon, label]) => <button className={meetingForm.audience === value ? 'active' : ''} name="audience" onClick={handleMeetingChange} type="button" value={value} key={value}><i className={`bi ${icon}`}></i>{label}</button>)}
@@ -336,13 +489,14 @@ function ManagementDashboard() {
                   <label><span>Meeting link</span><input name="meetingLink" placeholder="https://meet.google.com/..." type="url" value={meetingForm.meetingLink} onChange={handleMeetingChange} /></label>
                   <label className="span-2"><span>Message to recipients *</span><textarea name="message" placeholder="Add agenda, preparation notes, and meeting instructions" value={meetingForm.message} onChange={handleMeetingChange} required></textarea></label>
                 </div>
-                <button className="management-primary-action" disabled={saving} type="submit"><i className="bi bi-send-fill"></i>{saving ? 'Scheduling...' : 'Schedule and Send Message'}</button>
+                <button className="management-primary-action" disabled={saving} type="submit"><i className={`bi ${editingMeetingId ? 'bi-check2-circle' : 'bi-send-fill'}`}></i>{saving ? 'Saving...' : editingMeetingId ? 'Update Meeting' : 'Schedule and Send Message'}</button>
+                {editingMeetingId && <button className="management-secondary-action" onClick={handleCancelMeetingEdit} type="button">Cancel Edit</button>}
               </form>
             </article>
             <article className="management-panel">
               <div className="management-panel-heading"><div><span>Calendar</span><h2>Scheduled Meetings</h2></div><b>{data.meetings.length}</b></div>
               <div className="management-meeting-list">
-                {data.meetings.map((meeting) => <article key={meeting._id}><div className="meeting-date-tile"><strong>{new Date(meeting.meetingDate).getDate()}</strong><span>{new Date(meeting.meetingDate).toLocaleString([], { month: 'short' })}</span></div><div><strong>{meeting.title}</strong><span>{meeting.meetingTime} · {meeting.durationMinutes} minutes · {meeting.audience === 'all' ? 'Everyone' : meeting.audience}</span><p>{meeting.message}</p>{meeting.meetingLink && <a href={meeting.meetingLink} rel="noreferrer" target="_blank">Open meeting link</a>}</div></article>)}
+                {data.meetings.map((meeting) => <article key={meeting._id}><div className="meeting-date-tile"><strong>{new Date(meeting.meetingDate).getDate()}</strong><span>{new Date(meeting.meetingDate).toLocaleString([], { month: 'short' })}</span></div><div><strong>{meeting.title}</strong><span>{meeting.meetingTime} · {meeting.durationMinutes} minutes · {meeting.audience === 'all' ? 'Everyone' : meeting.audience}</span><p>{meeting.message}</p>{meeting.meetingLink && <a href={meeting.meetingLink} rel="noreferrer" target="_blank">Open meeting link</a>}{isUpcomingMeeting(meeting) && <button className="meeting-edit-button" onClick={() => handleEditMeeting(meeting)} type="button"><i className="bi bi-pencil-square"></i>Edit</button>}</div></article>)}
                 {!data.meetings.length && <p className="management-empty">No meetings scheduled yet.</p>}
               </div>
             </article>

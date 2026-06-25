@@ -144,6 +144,7 @@ const getEmployeeLeaveBalance = (employee, leaves) => {
   return { annual, used, remaining: Math.max(0, annual - used) }
 }
 const payslipLabels = ['Latest month', 'Previous month', 'Third month']
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 const getReviewMessage = (application) =>
   `${application.fullName || 'Candidate'} moved to review. Please check the application details before the next step.`
 
@@ -484,8 +485,8 @@ function AdminDashboard() {
   const handleEmployeePhoto = async (event, editing = false) => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (file.size > 1024 * 1024) {
-      setError('Employee photo must be 1 MB or smaller')
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError('Employee photo must be 10 MB or smaller')
       event.target.value = ''
       return
     }
@@ -548,6 +549,10 @@ function AdminDashboard() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError('Profile photo must be 10 MB or smaller')
+      return
+    }
 
     try {
       setSavingProfilePhoto(true)
@@ -1346,7 +1351,7 @@ function AdminDashboard() {
                         <i className="bi bi-camera-fill" aria-hidden="true"></i>
                       )}
                       <span>{employeeForm.profilePhoto ? 'Change photo' : 'Upload photo'}</span>
-                      <small>JPG or PNG, maximum 1 MB</small>
+                      <small>JPG or PNG, maximum 10 MB</small>
                       <input accept="image/*" onChange={(event) => handleEmployeePhoto(event)} required={!employeeForm.profilePhoto} type="file" />
                     </label>
                   </div>
@@ -1593,7 +1598,7 @@ function AdminDashboard() {
               <span>{attendance.length} Records</span>
             </div>
             <div className={`admin-own-attendance ${activeAdminAttendance ? 'checked-in' : ''}`}>
-              <div><i className={`bi ${activeAdminAttendance ? 'bi-person-check-fill' : 'bi-person-dash-fill'}`}></i><div><span>Admin attendance</span><strong>{activeAdminAttendance ? `Checked in at ${formatTime(activeAdminAttendance.loginAt)}` : 'Not checked in today'}</strong></div></div>
+              <div><i className={`bi ${activeAdminAttendance ? 'bi-person-check-fill' : 'bi-person-dash-fill'}`}></i><div><span>Admin attendance</span><strong>{activeAdminAttendance ? `Checked in at ${formatTime(activeAdminAttendance.loginAt)}` : 'Ready to check in'}</strong></div></div>
               <button disabled={savingAdminAttendance} onClick={handleAdminAttendance} type="button">{savingAdminAttendance ? 'Saving...' : activeAdminAttendance ? 'Check Out' : 'Check In'}</button>
             </div>
             <div className="attendance-list admin-attendance-list">
@@ -1981,7 +1986,6 @@ function AdminDashboard() {
           <article className="admin-panel">
             <div className="panel-heading">
               <h2>{activeView === 'reports' ? 'Reports' : 'Settings'}</h2>
-              <span>Connected</span>
             </div>
             <p className="empty-state">
               {activeView === 'reports'

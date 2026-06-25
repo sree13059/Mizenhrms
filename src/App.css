@@ -3431,7 +3431,7 @@
 
 .employee-admin-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 14px;
 }
 
@@ -3482,9 +3482,10 @@
   object-fit: cover;
 }
 
-.employee-admin-card div:not(.employee-admin-avatar) {
+.employee-admin-card > div:not(.employee-admin-avatar):not(.employee-card-actions) {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .employee-admin-card .employee-card-actions {
@@ -3518,9 +3519,11 @@
   margin: 0;
   color: var(--muted);
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .employee-admin-card em {
+  justify-self: end;
   padding: 7px 10px;
   border-radius: 999px;
   color: var(--brand-deep);
@@ -4045,6 +4048,16 @@
   text-transform: capitalize;
 }
 
+.leave-request-preview {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #dfe8ef;
+  border-radius: 14px;
+  color: #506b81;
+  background: #f5f9fc;
+  font-weight: 850;
+}
+
 .leave-admin-card {
   grid-template-columns: 48px minmax(0, 1fr) 160px;
 }
@@ -4216,6 +4229,8 @@
 .department-actions {
   display: flex;
   gap: 8px;
+  justify-content: flex-start;
+  margin-top: auto;
 }
 
 .department-card .department-actions button {
@@ -4351,6 +4366,13 @@
 
 .compact-departments {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-departments .department-card {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto auto auto 1fr auto;
 }
 
 .department-card button {
@@ -5176,6 +5198,7 @@
 
   .admin-nav,
   .admin-stat-grid,
+  .employee-admin-grid,
   .employee-nav,
   .employee-dashboard-shell .employee-stat-grid,
   .employee-profile-form,
@@ -5216,6 +5239,25 @@
     grid-template-columns: 1fr;
   }
 
+  .employee-admin-card {
+    align-items: stretch;
+    justify-items: start;
+  }
+
+  .employee-admin-card .employee-card-actions,
+  .department-actions {
+    justify-content: stretch;
+  }
+
+  .employee-admin-card em {
+    justify-self: stretch;
+    text-align: center;
+  }
+
+  .employee-admin-card .employee-card-actions {
+    width: 100%;
+  }
+
   .profile-photo-uploader {
     justify-items: center;
     text-align: center;
@@ -5236,6 +5278,10 @@
   }
 
   .admin-row-actions button {
+    flex: 1;
+  }
+
+  .department-card .department-actions button {
     flex: 1;
   }
 
@@ -5901,7 +5947,10 @@
   color: #3b627d;
   font-size: .7rem;
   font-weight: 800;
+  line-height: 1.35;
+  max-width: 100%;
   padding: 4px 8px;
+  white-space: normal;
 }
 
 .employee-edit-photo {
@@ -6121,6 +6170,35 @@
   top: 0;
 }
 
+.management-menu-toggle {
+  align-items: center;
+  background: rgba(255,255,255,.13);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 14px;
+  display: none;
+  height: 48px;
+  justify-content: center;
+  margin: 0 0 16px auto;
+  padding: 0;
+  width: 48px;
+}
+
+.management-menu-toggle span {
+  background: #fff;
+  border-radius: 999px;
+  display: block;
+  height: 3px;
+  position: absolute;
+  transition: transform .24s ease, opacity .2s ease;
+  width: 23px;
+}
+
+.management-menu-toggle span:nth-child(1) { transform: translateY(-8px); }
+.management-menu-toggle span:nth-child(3) { transform: translateY(8px); }
+.management-dashboard.menu-open .management-menu-toggle span:nth-child(1) { transform: rotate(45deg); }
+.management-dashboard.menu-open .management-menu-toggle span:nth-child(2) { opacity: 0; }
+.management-dashboard.menu-open .management-menu-toggle span:nth-child(3) { transform: rotate(-45deg); }
+
 .management-brand {
   align-items: center;
   color: #fff;
@@ -6187,7 +6265,7 @@
   border-radius: 11px;
   color: rgba(255,255,255,.7);
   display: flex;
-  font-size: .84rem;
+  font-size: .94rem;
   font-weight: 750;
   gap: 11px;
   min-height: 45px;
@@ -6200,6 +6278,7 @@
 .management-sidebar nav button:hover {
   background: rgba(255,255,255,.12);
   color: #fff;
+  transform: translateX(4px);
 }
 
 .management-sidebar nav button.active { box-shadow: inset 3px 0 #8bd071; }
@@ -6230,11 +6309,11 @@
 
 .management-header h1 {
   color: #123c60;
-  font-size: clamp(1.65rem, 3vw, 2.3rem);
+  font-size: clamp(1.9rem, 3.3vw, 2.75rem);
   margin: 3px 0;
 }
 
-.management-header p { color: #74879a; margin: 0; }
+.management-header p { color: #74879a; font-size: 1.02rem; margin: 0; }
 
 .management-header > button {
   align-items: center;
@@ -6264,6 +6343,14 @@
   gap: 3px;
   padding: 20px;
   position: relative;
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.management-stat-grid article:hover,
+.management-employee-card:hover,
+.management-data-panel:hover {
+  box-shadow: 0 16px 38px rgba(21, 60, 91, .11);
+  transform: translateY(-3px);
 }
 
 .management-stat-grid i {
@@ -6279,9 +6366,9 @@
   width: 38px;
 }
 
-.management-stat-grid span { color: #718598; font-size: .75rem; font-weight: 800; }
-.management-stat-grid strong { color: #123c60; font-size: 1.85rem; }
-.management-stat-grid small { color: #8595a4; }
+.management-stat-grid span { color: #718598; font-size: .86rem; font-weight: 800; }
+.management-stat-grid strong { color: #123c60; font-size: 2.08rem; }
+.management-stat-grid small { color: #8595a4; font-size: .82rem; }
 
 .management-two-column {
   align-items: start;
@@ -6308,7 +6395,7 @@
 }
 
 .management-panel-heading span { color: #6ca850; font-size: .68rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
-.management-panel-heading h2 { color: #163e60; font-size: 1.18rem; margin: 3px 0 0; }
+.management-panel-heading h2 { color: #163e60; font-size: 1.34rem; margin: 3px 0 0; }
 .management-panel-heading b { background: #eff6fa; border-radius: 999px; color: #38607d; font-size: .72rem; padding: 7px 10px; }
 .management-panel-heading button { background: transparent; border: 0; color: #4c8c46; font-size: .78rem; font-weight: 900; }
 
@@ -6316,8 +6403,8 @@
 .management-list > div { align-items: center; border-bottom: 1px solid #edf1f4; display: grid; gap: 10px; grid-template-columns: 38px minmax(0, 1fr) auto; padding: 12px 0; }
 .management-list > div:last-child { border-bottom: 0; }
 .management-list strong,.management-list span { display: block; }
-.management-list strong { color: #1b415f; font-size: .84rem; }
-.management-list span { color: #81909d; font-size: .7rem; margin-top: 2px; }
+.management-list strong { color: #1b415f; font-size: .94rem; }
+.management-list span { color: #81909d; font-size: .8rem; margin-top: 2px; }
 .management-list em { color: #4b6579; font-size: .72rem; font-style: normal; font-weight: 800; }
 
 .management-avatar { align-items: center; background: #e8f2fa; border-radius: 10px; color: #265777; display: flex; font-weight: 900; height: 38px; justify-content: center; overflow: hidden; width: 38px; }
@@ -6328,16 +6415,175 @@
 
 .management-employee-grid { display: grid; gap: 15px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .management-employee-grid article { border: 1px solid #e1e8ee; border-radius: 15px; padding: 16px; }
+.management-employee-card {
+  background: linear-gradient(135deg, #fff, #f8fbfc);
+  cursor: pointer;
+  outline: 0;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.management-employee-card:hover,
+.management-employee-card:focus-visible {
+  border-color: #8bc977;
+}
 .management-employee-head { align-items: center; display: flex; gap: 11px; margin-bottom: 15px; }
 .management-employee-head > img,.management-employee-head > span { align-items: center; background: #e9f5e6; border-radius: 12px; color: #396d3d; display: flex; font-weight: 900; height: 46px; justify-content: center; object-fit: cover; width: 46px; }
 .management-employee-head strong,.management-employee-head small { display: block; }
-.management-employee-head strong { color: #173d5b; }
-.management-employee-head small { color: #728698; }
+.management-employee-head strong { color: #173d5b; font-size: 1.02rem; }
+.management-employee-head small { color: #728698; font-size: .82rem; }
 .management-employee-grid dl { display: grid; gap: 8px; margin: 0; }
 .management-employee-grid dl > div { display: flex; gap: 8px; justify-content: space-between; }
-.management-employee-grid dt { color: #8191a0; font-size: .7rem; }
-.management-employee-grid dd { color: #385873; font-size: .72rem; font-weight: 800; margin: 0; max-width: 65%; overflow-wrap: anywhere; text-align: right; }
+.management-employee-grid dt { color: #8191a0; font-size: .78rem; }
+.management-employee-grid dd { color: #385873; font-size: .82rem; font-weight: 800; margin: 0; max-width: 65%; overflow-wrap: anywhere; text-align: right; }
 .management-employee-grid article > p { background: #f3f8f1; border-radius: 9px; color: #4c704d; font-size: .7rem; margin: 12px 0 0; padding: 8px; }
+
+.management-insight-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  margin-top: 20px;
+}
+
+.management-data-panel {
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.management-data-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.management-data-card-grid.compact {
+  grid-template-columns: 1fr;
+}
+
+.management-data-card-grid > div {
+  background: #f5f9fc;
+  border: 1px solid #e0e8ee;
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.management-data-card-grid i,
+.management-admin-list i {
+  align-items: center;
+  background: #e8f5e3;
+  border-radius: 11px;
+  color: #3f7840;
+  display: flex;
+  font-size: 18px;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.management-data-card-grid span {
+  color: #6d8192;
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.management-data-card-grid strong {
+  color: #173e5d;
+  font-size: 1.6rem;
+}
+
+.management-data-card-grid small {
+  color: #8294a2;
+  font-size: .78rem;
+}
+
+.management-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.management-admin-attendance-list {
+  display: grid;
+  gap: 10px;
+}
+
+.management-admin-list > div,
+.management-admin-attendance-list > div {
+  align-items: center;
+  background: #f7fafc;
+  border: 1px solid #e1e9ee;
+  border-radius: 13px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  padding: 12px;
+}
+
+.management-admin-attendance-list > div {
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+}
+
+.management-admin-list strong,
+.management-admin-list span,
+.management-admin-attendance-list strong,
+.management-admin-attendance-list span {
+  display: block;
+}
+
+.management-admin-list strong,
+.management-admin-attendance-list strong {
+  color: #183f5d;
+  font-size: .96rem;
+}
+
+.management-admin-list span,
+.management-admin-attendance-list span {
+  color: #788b9a;
+  font-size: .8rem;
+  overflow-wrap: anywhere;
+}
+
+.management-admin-attendance-strip {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  margin-bottom: 18px;
+}
+
+.management-admin-attendance-strip article {
+  align-items: center;
+  background: linear-gradient(135deg, #f7fbff, #f2faef);
+  border: 1px solid #dce9df;
+  border-radius: 15px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.management-admin-attendance-strip i {
+  align-items: center;
+  background: #e6f5df;
+  border-radius: 13px;
+  color: #3f7840;
+  display: flex;
+  font-size: 19px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.management-admin-attendance-strip span,
+.management-admin-attendance-strip small {
+  color: #748799;
+  display: block;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.management-admin-attendance-strip strong {
+  color: #173e5d;
+  display: block;
+  font-size: 1rem;
+}
 
 .management-table-wrap { overflow-x: auto; }
 .management-table-wrap table { border-collapse: collapse; min-width: 760px; width: 100%; }
@@ -6371,20 +6617,35 @@
 
 @media (max-width: 1100px) {
   .management-employee-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .management-insight-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 850px) {
   .management-dashboard { grid-template-columns: 1fr; }
-  .management-sidebar { min-height: auto; position: static; }
-  .management-sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .management-sidebar { min-height: auto; padding: 18px; position: static; }
+  .management-menu-toggle { display: inline-flex; position: relative; }
+  .management-sidebar nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(-8px);
+    transition: max-height .3s ease, opacity .22s ease, transform .22s ease;
+  }
+  .management-dashboard.menu-open .management-sidebar nav {
+    max-height: 520px;
+    opacity: 1;
+    transform: translateY(0);
+  }
   .management-logout { margin-top: 16px; }
   .management-stat-grid,.management-two-column { grid-template-columns: 1fr; }
+  .management-data-card-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
   .management-workspace { padding: 20px 14px; }
   .management-header { align-items: flex-start; flex-direction: column; }
-  .management-sidebar nav { grid-template-columns: 1fr 1fr; }
+  .management-sidebar nav { grid-template-columns: 1fr; }
   .management-employee-grid { grid-template-columns: 1fr; }
   .login-role-options { grid-template-columns: 1fr; }
 }
@@ -6496,6 +6757,26 @@
 }
 
 .management-primary-action:disabled { opacity: .62; }
+
+.management-secondary-action,
+.meeting-edit-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #dbe5ec;
+  border-radius: 12px;
+  color: #214b6d;
+  display: inline-flex;
+  font-weight: 850;
+  gap: 7px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.meeting-edit-button {
+  margin-left: 10px;
+  margin-top: 5px;
+}
 
 .management-onboarding-layout { grid-template-columns: minmax(0, 1.5fr) minmax(270px, .5fr); }
 .management-onboarding-guide { background: linear-gradient(145deg, #123c60, #2d7256); color: #fff; }

@@ -36,9 +36,10 @@ function EmployeeDashboard() {
   const videoRef = useRef(null)
   const storedUser = authStorage.getUser()
   const token = authStorage.getToken()
+  const storedRole = storedUser?.role
   const employeeId = searchParams.get('employeeId') || ''
-  const isEmployee = Boolean(token && (storedUser?.role === 'employee' || localStorage.getItem('mizenRole') === 'employee'))
-  const isAdminPreview = Boolean(token && storedUser?.role === 'admin' && employeeId)
+  const isEmployee = Boolean(token && (storedRole === 'employee' || localStorage.getItem('mizenRole') === 'employee'))
+  const isAdminPreview = Boolean(token && ['admin', 'management'].includes(storedRole) && employeeId)
   const hasDashboardAccess = isEmployee || isAdminPreview
   const [activeView, setActiveView] = useState('overview')
   const [user, setUser] = useState(isAdminPreview ? null : storedUser)
@@ -68,28 +69,26 @@ function EmployeeDashboard() {
 
   const fetchEmployeeData = useCallback(async () => {
     if (isAdminPreview) {
-      const [employeesData, companyData, leavesData, attendanceData] = await Promise.all([
-        apiRequest('/admin/employees'),
-        apiRequest('/admin/company'),
-        apiRequest('/admin/leaves'),
-        apiRequest('/admin/attendance'),
-      ])
-      const selectedEmployee = (employeesData.employees || []).find(
-        (employee) => String(employee._id || employee.id) === employeeId,
-      )
-
-      if (!selectedEmployee) {
-        throw new Error('Employee not found')
+      let previewData
+      try {
+        previewData = await apiRequest(`/admin/employees/${employeeId}/dashboard`)
+      } catch (previewError) {
+        let storedPreview
+        try {
+          storedPreview = JSON.parse(localStorage.getItem('mizenManagementEmployeePreview') || 'null')
+        } catch {
+          storedPreview = null
+        }
+        if (storedRole !== 'management' || String(storedPreview?.employeeId || '') !== String(employeeId)) {
+          throw previewError
+        }
+        previewData = storedPreview
       }
-
-      const belongsToSelectedEmployee = (entry) =>
-        String(entry.employee?._id || entry.employee?.id || entry.employee) === employeeId
-
       return {
-        nextUser: { ...selectedEmployee, id: selectedEmployee._id || selectedEmployee.id },
-        nextCompany: companyData.company || null,
-        nextLeaves: (leavesData.leaves || []).filter(belongsToSelectedEmployee),
-        nextAttendance: (attendanceData.attendance || []).filter(belongsToSelectedEmployee),
+        nextUser: previewData.user,
+        nextCompany: previewData.company || null,
+        nextLeaves: previewData.leaves || [],
+        nextAttendance: previewData.attendance || [],
         nextMeetings: [],
       }
     }
@@ -109,7 +108,7 @@ function EmployeeDashboard() {
       nextAttendance: attendanceData.attendance || [],
       nextMeetings: meetingsData.meetings || [],
     }
-  }, [employeeId, isAdminPreview])
+  }, [employeeId, isAdminPreview, storedRole])
 
   const applyEmployeeData = ({ nextUser, nextCompany, nextLeaves, nextAttendance, nextMeetings }) => {
     setUser(nextUser)
@@ -183,9 +182,21 @@ function EmployeeDashboard() {
   const approvedLeaves = useMemo(() => leaves.filter((leave) => leave.status === 'approved'), [leaves])
   const annualLeaveAllowance = Number(user?.annualLeaveAllowance) || 20
   const usedLeaveDays = useMemo(() => approvedLeaves
+    .filter((leave) => leave.type !== 'unpaid')
     .filter((leave) => new Date(leave.fromDate).getFullYear() === new Date().getFullYear())
     .reduce((total, leave) => total + getLeaveDays(leave), 0), [approvedLeaves])
-  const remainingLeaveDays = Math.max(0, annualLeaveAllowance - usedLeaveDays)
+  const pendingLeaveDays = useMemo(() => pendingLeaves
+    .filter((leave) => leave.type !== 'unpaid')
+    .filter((leave) => new Date(leave.fromDate).getFullYear() === new Date().getFullYear())
+    .reduce((total, leave) => total + getLeaveDays(leave), 0), [pendingLeaves])
+  const remainingLeaveDays = Math.max(0, annualLeaveAllowance - usedLeaveDays - pendingLeaveDays)
+  const requestedLeaveDays = useMemo(() => {
+    if (!leaveForm.fromDate || !leaveForm.toDate) return 0
+    const from = new Date(leaveForm.fromDate)
+    const to = new Date(leaveForm.toDate)
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return 0
+    return Math.max(1, Math.floor((to - from) / 86400000) + 1)
+  }, [leaveForm.fromDate, leaveForm.toDate])
 
   const dashboardStats = [
     ['bi-clock-fill', 'Attendance', activeAttendance ? 'Logged In' : 'Logged Out', activeAttendance ? 'Session active' : 'Ready to login'],
@@ -234,6 +245,14 @@ function EmployeeDashboard() {
     if (isAdminPreview) return
 
     try {
+      if (new Date(leaveForm.toDate) < new Date(leaveForm.fromDate)) {
+        setError('Leave end date cannot be before start date')
+        return
+      }
+      if (leaveForm.type !== 'unpaid' && requestedLeaveDays > remainingLeaveDays) {
+        setError(`You requested ${requestedLeaveDays} leave day${requestedLeaveDays === 1 ? '' : 's'}, but only ${remainingLeaveDays} day${remainingLeaveDays === 1 ? '' : 's'} are available.`)
+        return
+      }
       setSavingLeave(true)
       setError('')
       await apiRequest('/admin/leaves', {
@@ -327,7 +346,7 @@ function EmployeeDashboard() {
 
   const handleLogout = () => {
     if (isAdminPreview) {
-      navigate('/admin')
+      navigate(storedUser?.role === 'management' ? '/management' : '/admin')
       return
     }
 
@@ -357,7 +376,7 @@ function EmployeeDashboard() {
           <img src={logo} alt="Mizen Tech Solutions logo" />
           <span>
             <strong>Mizen</strong>
-            <small>{isAdminPreview ? 'Admin Preview' : 'Employee'}</small>
+            <small>{isAdminPreview ? `${storedUser?.role === 'management' ? 'Management' : 'Admin'} Preview` : 'Employee'}</small>
           </span>
         </a>
 
@@ -385,7 +404,7 @@ function EmployeeDashboard() {
 
         <button className="employee-logout" onClick={handleLogout} type="button">
           <i className={`bi ${isAdminPreview ? 'bi-arrow-left' : 'bi-box-arrow-right'}`} aria-hidden="true"></i>
-          {isAdminPreview ? 'Back to Admin' : 'Logout'}
+          {isAdminPreview ? `Back to ${storedUser?.role === 'management' ? 'Management' : 'Admin'}` : 'Logout'}
         </button>
       </aside>
 
@@ -393,7 +412,7 @@ function EmployeeDashboard() {
         {isAdminPreview && (
           <div className="employee-admin-preview-note">
             <i className="bi bi-eye-fill" aria-hidden="true"></i>
-            <span>You are viewing this employee dashboard as admin. Employee actions are read-only.</span>
+            <span>You are viewing this employee dashboard in preview mode. Employee actions are read-only.</span>
           </div>
         )}
 
@@ -542,7 +561,7 @@ function EmployeeDashboard() {
           <div className="employee-leave-balance-grid">
             <article><i className="bi bi-calendar2-week-fill"></i><span>Annual allowance</span><strong>{annualLeaveAllowance}</strong><small>days this year</small></article>
             <article><i className="bi bi-calendar2-check-fill"></i><span>Used leave</span><strong>{usedLeaveDays}</strong><small>approved days</small></article>
-            <article className="remaining"><i className="bi bi-calendar2-heart-fill"></i><span>Remaining leave</span><strong>{remainingLeaveDays}</strong><small>days available</small></article>
+            <article className="remaining"><i className="bi bi-calendar2-heart-fill"></i><span>Remaining leave</span><strong>{remainingLeaveDays}</strong><small>{pendingLeaveDays} pending day{pendingLeaveDays === 1 ? '' : 's'} reserved</small></article>
           </div>
           <section className="admin-content-grid">
             <article className="employee-panel">
@@ -564,7 +583,12 @@ function EmployeeDashboard() {
                   <input name="fromDate" type="date" value={leaveForm.fromDate} onChange={handleLeaveChange} required />
                   <input name="toDate" type="date" value={leaveForm.toDate} onChange={handleLeaveChange} required />
                   <textarea className="span-2" name="reason" placeholder="Reason" value={leaveForm.reason} onChange={handleLeaveChange} required></textarea>
-                  <button className="primary-btn span-2" disabled={savingLeave} type="submit">
+                  {requestedLeaveDays > 0 && leaveForm.type !== 'unpaid' && (
+                    <p className="leave-request-preview span-2">
+                      Requesting {requestedLeaveDays} day{requestedLeaveDays === 1 ? '' : 's'} from {remainingLeaveDays} available.
+                    </p>
+                  )}
+                  <button className="primary-btn span-2" disabled={savingLeave || (leaveForm.type !== 'unpaid' && requestedLeaveDays > remainingLeaveDays)} type="submit">
                     {savingLeave ? 'Submitting...' : 'Submit Leave'}
                   </button>
                 </form>
