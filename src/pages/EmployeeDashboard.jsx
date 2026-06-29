@@ -22,7 +22,19 @@ const emptyLeaveForm = {
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : 'Not added')
 const formatTime = (value) => (value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending')
-const getWorkDate = () => new Date().toISOString().slice(0, 10)
+const getWorkDate = () => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const values = parts.reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value
+    return acc
+  }, {})
+  return `${values.year}-${values.month}-${values.day}`
+}
 const getLeaveDays = (leave) => {
   const from = new Date(leave.fromDate)
   const to = new Date(leave.toDate)
@@ -175,7 +187,7 @@ function EmployeeDashboard() {
     [attendance],
   )
   const todayAttendance = useMemo(
-    () => attendance.find((entry) => entry.workDate === getWorkDate()) || attendance[0],
+    () => attendance.find((entry) => entry.workDate === getWorkDate()),
     [attendance],
   )
   const pendingLeaves = useMemo(() => leaves.filter((leave) => leave.status === 'pending'), [leaves])
@@ -199,7 +211,12 @@ function EmployeeDashboard() {
   }, [leaveForm.fromDate, leaveForm.toDate])
 
   const dashboardStats = [
-    ['bi-clock-fill', 'Attendance', activeAttendance ? 'Logged In' : 'Logged Out', activeAttendance ? 'Session active' : 'Ready to login'],
+    [
+      'bi-clock-fill',
+      'Attendance',
+      activeAttendance ? 'Logged In' : (todayAttendance && todayAttendance.status === 'checked-out' ? 'Completed' : 'Logged Out'),
+      activeAttendance ? 'Session active' : (todayAttendance && todayAttendance.status === 'checked-out' ? 'Done for today' : 'Ready to login'),
+    ],
     ['bi-calendar2-check-fill', 'Leaves Remaining', remainingLeaveDays, `${annualLeaveAllowance} days per year`],
     ['bi-patch-check-fill', 'Leaves Used', usedLeaveDays, `${pendingLeaves.length} pending request${pendingLeaves.length === 1 ? '' : 's'}`],
     ['bi-person-check-fill', 'Employee ID', user?.employeeId || 'Not assigned', 'Current profile'],
@@ -344,14 +361,20 @@ function EmployeeDashboard() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (isAdminPreview) {
       navigate(storedUser?.role === 'management' ? '/management' : '/admin')
       return
     }
 
-    authStorage.clearSession()
-    navigate('/login')
+    try {
+      await apiRequest('/auth/logout', { method: 'POST' })
+    } catch {
+      // Local logout should still complete even if the server cannot record it.
+    } finally {
+      authStorage.clearSession()
+      navigate('/login')
+    }
   }
 
   if (!hasDashboardAccess) {
@@ -426,17 +449,19 @@ function EmployeeDashboard() {
           </button>
         </div>
 
-        <header className="employee-workspace-hero">
-          <div>
-            <p className="eyebrow">{activeView}</p>
-            <h1>Welcome, {user?.fullName || 'Employee'}</h1>
-            <p>{company?.description || 'Track attendance, request leave, and keep your employee details up to date.'}</p>
-          </div>
-          <button className="employee-edit-button" onClick={() => setActiveView('profile')} type="button">
-            <i className={`bi ${isAdminPreview ? 'bi-person-vcard-fill' : 'bi-pencil-square'}`} aria-hidden="true"></i>
-            {isAdminPreview ? 'View Profile' : 'Edit Profile'}
-          </button>
-        </header>
+        {activeView === 'overview' && (
+          <header className="employee-workspace-hero">
+            <div>
+              <p className="eyebrow">{activeView}</p>
+              <h1>Welcome, {user?.fullName || 'Employee'}</h1>
+              <p>{company?.description || 'Track attendance, request leave, and keep your employee details up to date.'}</p>
+            </div>
+            <button className="employee-edit-button" onClick={() => setActiveView('profile')} type="button">
+              <i className={`bi ${isAdminPreview ? 'bi-person-vcard-fill' : 'bi-pencil-square'}`} aria-hidden="true"></i>
+              {isAdminPreview ? 'View Profile' : 'Edit Profile'}
+            </button>
+          </header>
+        )}
 
         {error && <p className="employee-error">{error}</p>}
 
@@ -457,7 +482,7 @@ function EmployeeDashboard() {
               <article className="employee-panel">
                 <div className="panel-heading">
                   <h2>Today Attendance</h2>
-                  <span>{activeAttendance ? 'Logged In' : 'Logged Out'}</span>
+                  <span>{activeAttendance ? 'Logged In' : (todayAttendance && todayAttendance.status === 'checked-out' ? 'Completed' : 'Logged Out')}</span>
                 </div>
                 <div className="attendance-action-card">
                   <i className={`bi ${activeAttendance ? 'bi-box-arrow-in-right' : 'bi-box-arrow-left'}`} aria-hidden="true"></i>
@@ -473,6 +498,8 @@ function EmployeeDashboard() {
                     <span className="employee-read-only-label">Read only</span>
                   ) : activeAttendance ? (
                     <button disabled={savingAttendance} onClick={() => openAttendanceCamera('logout')} type="button">Logout</button>
+                  ) : todayAttendance && todayAttendance.status === 'checked-out' ? (
+                    <button disabled type="button">Completed</button>
                   ) : (
                     <button disabled={savingAttendance} onClick={() => openAttendanceCamera('login')} type="button">Login</button>
                   )}
@@ -506,18 +533,20 @@ function EmployeeDashboard() {
           <article className="employee-panel">
             <div className="panel-heading">
               <h2>Attendance</h2>
-              <span>{activeAttendance ? 'Active Session' : 'Ready'}</span>
+              <span>{activeAttendance ? 'Active Session' : (todayAttendance && todayAttendance.status === 'checked-out' ? 'Completed' : 'Ready')}</span>
             </div>
             <div className="attendance-action-card">
               <i className="bi bi-clock-history" aria-hidden="true"></i>
               <div>
-                <strong>{activeAttendance ? formatTime(activeAttendance.loginAt) : 'Start your day'}</strong>
-                <span>{activeAttendance ? 'Current login' : 'Attendance login'}</span>
+                <strong>{activeAttendance ? formatTime(activeAttendance.loginAt) : (todayAttendance && todayAttendance.status === 'checked-out' ? 'Checked out' : 'Start your day')}</strong>
+                <span>{activeAttendance ? 'Current login' : (todayAttendance && todayAttendance.status === 'checked-out' ? 'Session completed' : 'Attendance login')}</span>
               </div>
               {isAdminPreview ? (
                 <span className="employee-read-only-label">Read only</span>
               ) : activeAttendance ? (
                 <button disabled={savingAttendance} onClick={() => openAttendanceCamera('logout')} type="button">Logout</button>
+              ) : todayAttendance && todayAttendance.status === 'checked-out' ? (
+                <button disabled type="button">Completed</button>
               ) : (
                 <button disabled={savingAttendance} onClick={() => openAttendanceCamera('login')} type="button">Login</button>
               )}
@@ -580,8 +609,14 @@ function EmployeeDashboard() {
                     <option value="unpaid">Unpaid Leave</option>
                     <option value="other">Other</option>
                   </select>
-                  <input name="fromDate" type="date" value={leaveForm.fromDate} onChange={handleLeaveChange} required />
-                  <input name="toDate" type="date" value={leaveForm.toDate} onChange={handleLeaveChange} required />
+                  <label>
+                    <span>From date</span>
+                    <input name="fromDate" type="date" value={leaveForm.fromDate} onChange={handleLeaveChange} required />
+                  </label>
+                  <label>
+                    <span>To date</span>
+                    <input name="toDate" type="date" value={leaveForm.toDate} onChange={handleLeaveChange} required />
+                  </label>
                   <textarea className="span-2" name="reason" placeholder="Reason" value={leaveForm.reason} onChange={handleLeaveChange} required></textarea>
                   {requestedLeaveDays > 0 && leaveForm.type !== 'unpaid' && (
                     <p className="leave-request-preview span-2">

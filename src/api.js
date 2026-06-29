@@ -1,16 +1,28 @@
-const DEFAULT_API_BASE_URL = import.meta.env.DEV
-  ? 'http://localhost:5000/api'
-  : 'https://mizenbackendfile.onrender.com/api'
+const DEFAULT_API_BASE_URL = 'https://mizenbackendfile.onrender.com/api'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL)
   .replace(/\/$/, '')
   .replace(/\/api\/?$/i, '/api')
 const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(`${API_BASE_URL}/`)
+const API_BASE_STORAGE_KEY = 'mizenApiBaseUrl'
+
+const syncSessionApiBase = () => {
+  const savedApiBaseUrl = localStorage.getItem(API_BASE_STORAGE_KEY)
+  const hasSession = localStorage.getItem('mizenToken') || localStorage.getItem('token')
+
+  if (hasSession && savedApiBaseUrl && savedApiBaseUrl !== API_BASE_URL) {
+    authStorage.clearSession()
+  }
+
+  localStorage.setItem(API_BASE_STORAGE_KEY, API_BASE_URL)
+}
 
 export const authStorage = {
   getToken() {
+    syncSessionApiBase()
     return localStorage.getItem('mizenToken') || localStorage.getItem('token') || ''
   },
   getUser() {
+    syncSessionApiBase()
     try {
       return JSON.parse(localStorage.getItem('mizenUser') || 'null')
     } catch {
@@ -23,6 +35,7 @@ export const authStorage = {
     localStorage.setItem('mizenUser', JSON.stringify(user))
     localStorage.setItem('mizenRole', user.role)
     localStorage.setItem('mizenAdminLoggedIn', user.role === 'admin' ? 'true' : 'false')
+    localStorage.setItem(API_BASE_STORAGE_KEY, API_BASE_URL)
   },
   clearSession() {
     localStorage.removeItem('mizenToken')
@@ -53,8 +66,8 @@ export async function apiRequest(path, options = {}) {
   } catch {
     throw new Error(
       isLocalApi
-        ? 'HRMS Backend is offline. Start the Backend on localhost:5000 and try again.'
-        : 'Unable to connect to the deployed HRMS Backend. Render may be waking up; please try again shortly.',
+        ? 'HRMS Backend is configured to localhost but is offline. Set VITE_API_BASE_URL to the server API and try again.'
+        : 'Unable to connect to the HRMS Backend server. Render may be waking up; please try again shortly.',
     )
   }
 
@@ -63,6 +76,10 @@ export async function apiRequest(path, options = {}) {
   if (!response.ok || data.success === false) {
     const error = new Error(data.message || `${response.status} ${response.statusText || 'Request failed'}: ${path}`)
     error.status = response.status
+    if (response.status === 401) {
+      authStorage.clearSession()
+      error.message = 'Your server session expired. Please sign in again to load current data.'
+    }
     throw error
   }
 

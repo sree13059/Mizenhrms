@@ -3036,7 +3036,7 @@
 
 .job-row i,
 .employee-job-row i,
-.department-card i,
+.department-card > i,
 .employee-stat-card i {
   display: grid;
   width: 42px;
@@ -3061,19 +3061,27 @@
 
 .department-card {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
+  align-items: start;
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: #f8fbff;
 }
 
+.department-card > i {
+  grid-row: 1 / span 3;
+}
+
 .department-card strong {
+  min-width: 0;
   color: var(--brand-deep);
   font-size: 1.12rem;
 }
 
 .department-card span {
+  min-width: 0;
   color: var(--muted);
   font-weight: 850;
 }
@@ -3884,6 +3892,18 @@
   gap: 12px;
 }
 
+.employee-profile-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.employee-profile-form label span {
+  color: var(--brand-deep);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .employee-profile-form input,
 .employee-profile-form select,
 .employee-profile-form textarea {
@@ -4254,6 +4274,7 @@
 .service-admin-card span,
 .service-admin-card p,
 .department-card p {
+  grid-column: 2;
   margin: 0;
   color: var(--muted);
   font-weight: 800;
@@ -4271,6 +4292,7 @@
 }
 
 .department-actions {
+  grid-column: 1 / -1;
   display: flex;
   gap: 8px;
   justify-content: flex-start;
@@ -4287,6 +4309,16 @@
   border: 1px solid var(--line);
   color: var(--brand-deep);
   background: #fff;
+}
+
+.department-card .department-actions button i {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 1rem;
+  box-shadow: none;
 }
 
 .department-card .department-actions button:hover {
@@ -4416,7 +4448,7 @@
   align-items: start;
   display: grid;
   gap: 10px;
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .department-card button {

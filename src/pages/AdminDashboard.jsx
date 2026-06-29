@@ -147,6 +147,10 @@ const payslipLabels = ['Latest month', 'Previous month', 'Third month']
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 const getReviewMessage = (application) =>
   `${application.fullName || 'Candidate'} moved to review. Please check the application details before the next step.`
+const getEmailRecipientsText = (application, emailNotification) => {
+  const recipients = [application.email, ...(emailNotification?.copyTo || [])].filter(Boolean)
+  return recipients.join(' and ')
+}
 
 function AdminDashboard() {
   const navigate = useNavigate()
@@ -157,6 +161,15 @@ function AdminDashboard() {
 
   const [activeView, setActiveView] = useState('dashboard')
   const [adminUser, setAdminUser] = useState(storedUser)
+  const [adminProfileForm, setAdminProfileForm] = useState({
+    fullName: storedUser?.fullName || '',
+    phone: storedUser?.phone || '',
+    department: storedUser?.department || '',
+    designation: storedUser?.designation || '',
+    address: storedUser?.address || '',
+    bio: storedUser?.bio || '',
+    linkedIn: storedUser?.linkedIn || '',
+  })
   const [summary, setSummary] = useState(emptySummary)
   const [registers, setRegisters] = useState([])
   const [employees, setEmployees] = useState([])
@@ -236,7 +249,7 @@ function AdminDashboard() {
       ['attendance', 'Attendance', apiRequest('/admin/attendance')],
       ['meetings', 'Meetings', optionalApiRequest('/admin/meetings', { meetings: [] })],
       ['projects', 'Projects', apiRequest('/admin/projects')],
-      ['departments', 'Departments', apiRequest('/admin/departments')],
+      ['departments', 'Departments', apiRequest('/admin/departments').catch(() => ({ departments: [] }))],
       ['services', 'Services', apiRequest('/admin/services')],
       ['company', 'Company', apiRequest('/admin/company')],
     ]
@@ -326,6 +339,10 @@ function AdminDashboard() {
       applyAdminData(data)
       setError(data.error)
     } catch (err) {
+      if (err.status === 401) {
+        navigate('/login')
+        return
+      }
       setError(err.message || 'Failed to load admin dashboard')
     } finally {
       setLoading(false)
@@ -352,6 +369,10 @@ function AdminDashboard() {
       })
       .catch((err) => {
         if (isActive) {
+          if (err.status === 401) {
+            navigate('/login')
+            return
+          }
           setError(err.message || 'Failed to load admin dashboard')
         }
       })
@@ -573,6 +594,36 @@ function AdminDashboard() {
     }
   }
 
+  const handleAdminProfileChange = (event) => {
+    const { name, value } = event.currentTarget
+    setAdminProfileForm((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleAdminProfileSave = async (event) => {
+    event.preventDefault()
+
+    try {
+      setError('')
+      const data = await apiRequest('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify(adminProfileForm),
+      })
+      setAdminUser(data.user)
+      authStorage.setSession(authStorage.getToken(), data.user)
+      setAdminProfileForm({
+        fullName: data.user.fullName || '',
+        phone: data.user.phone || '',
+        department: data.user.department || '',
+        designation: data.user.designation || '',
+        address: data.user.address || '',
+        bio: data.user.bio || '',
+        linkedIn: data.user.linkedIn || '',
+      })
+    } catch (err) {
+      setError(err.message || 'Failed to update profile')
+    }
+  }
+
   const handleEditApplication = (application) => {
     setEditingApplicationId(application._id)
     setApplicationNotice('')
@@ -716,14 +767,14 @@ function AdminDashboard() {
 
       if (status === 'shortlisted') {
         setApplicationNotice(data.emailNotification?.sent
-          ? `${updatedApplication.fullName || 'Candidate'} was shortlisted and the email was sent to ${updatedApplication.email}.`
-          : `${updatedApplication.fullName || 'Candidate'} was shortlisted. Email not sent: ${data.emailNotification?.reason || 'SMTP is not configured'}.`)
+          ? `${updatedApplication.fullName || 'Candidate'} was shortlisted. Shortlist email sent to ${getEmailRecipientsText(updatedApplication, data.emailNotification)}.`
+          : `${updatedApplication.fullName || 'Candidate'} was shortlisted. Shortlist email not sent: ${data.emailNotification?.reason || 'SMTP is not configured'}.`)
       }
 
       if (status === 'rejected') {
         setApplicationNotice(data.emailNotification?.sent
-          ? `${updatedApplication.fullName || 'Candidate'} was rejected and the email was sent to ${updatedApplication.email}.`
-          : `${updatedApplication.fullName || 'Candidate'} was rejected. Email not sent: ${data.emailNotification?.reason || 'SMTP is not configured'}.`)
+          ? `${updatedApplication.fullName || 'Candidate'} was rejected. Rejection email sent to ${getEmailRecipientsText(updatedApplication, data.emailNotification)}.`
+          : `${updatedApplication.fullName || 'Candidate'} was rejected. Rejection email not sent: ${data.emailNotification?.reason || 'SMTP is not configured'}.`)
       }
     } catch (err) {
       setError(err.message || 'Failed to update application')
@@ -740,7 +791,7 @@ function AdminDashboard() {
       })
 
       setApplicationNotice(data.emailNotification?.sent
-        ? `Email sent to ${application.email}.`
+        ? `Email sent to ${getEmailRecipientsText(application, data.emailNotification)}.`
         : `Email not sent: ${data.emailNotification?.reason || 'SMTP delivery failed'}.`)
     } catch (err) {
       setApplicationNotice(`Email not sent: ${err.message || 'SMTP delivery failed'}.`)
@@ -1154,7 +1205,7 @@ function AdminDashboard() {
                   <button
                     className="dropdown-command"
                     onClick={() => {
-                      setActiveView('settings')
+                      setActiveView('profile')
                       setProfileMenuOpen(false)
                     }}
                     type="button"
@@ -1995,6 +2046,46 @@ function AdminDashboard() {
               </div>
             </article>
           </section>
+        )}
+
+        {activeView === 'profile' && (
+          <article className="admin-panel">
+            <div className="panel-heading">
+              <h2>Edit Profile</h2>
+              <span>Admin</span>
+            </div>
+            <form className="employee-profile-form" onSubmit={handleAdminProfileSave}>
+              <label>
+                <span>Full name</span>
+                <input name="fullName" placeholder="Full name" value={adminProfileForm.fullName} onChange={handleAdminProfileChange} required />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="phone" placeholder="Phone" value={adminProfileForm.phone} onChange={handleAdminProfileChange} required />
+              </label>
+              <label>
+                <span>Department</span>
+                <input name="department" placeholder="Department" value={adminProfileForm.department} onChange={handleAdminProfileChange} />
+              </label>
+              <label>
+                <span>Designation</span>
+                <input name="designation" placeholder="Designation" value={adminProfileForm.designation} onChange={handleAdminProfileChange} />
+              </label>
+              <label className="span-2">
+                <span>LinkedIn URL</span>
+                <input name="linkedIn" placeholder="LinkedIn URL" value={adminProfileForm.linkedIn} onChange={handleAdminProfileChange} />
+              </label>
+              <label>
+                <span>Address</span>
+                <textarea name="address" placeholder="Address" value={adminProfileForm.address} onChange={handleAdminProfileChange}></textarea>
+              </label>
+              <label>
+                <span>Bio</span>
+                <textarea name="bio" placeholder="Short bio" value={adminProfileForm.bio} onChange={handleAdminProfileChange}></textarea>
+              </label>
+              <button className="primary-btn span-2" type="submit">Save Profile</button>
+            </form>
+          </article>
         )}
 
         {['reports', 'settings'].includes(activeView) && (

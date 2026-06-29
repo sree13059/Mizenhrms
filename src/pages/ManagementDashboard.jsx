@@ -44,8 +44,7 @@ const formatDate = (value) => value ? new Date(value).toLocaleDateString() : 'â€
 const formatTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'â€”'
 const toDateInputValue = (value) => value ? new Date(value).toISOString().slice(0, 10) : ''
 const isUpcomingMeeting = (meeting) => {
-  const meetingStartsAt = new Date(`${toDateInputValue(meeting.meetingDate)}T${meeting.meetingTime || '00:00'}`)
-  return meeting.status !== 'cancelled' && meetingStartsAt >= new Date()
+  return meeting.status === 'scheduled'
 }
 
 const leaveDays = (leave) => {
@@ -182,13 +181,27 @@ function ManagementDashboard() {
     try {
       setSaving(true)
       setError('')
-      const response = await apiRequest(editingMeetingId ? `/admin/meetings/${editingMeetingId}` : '/admin/meetings', {
-        method: editingMeetingId ? 'PUT' : 'POST',
-        body: JSON.stringify(meetingForm),
-      })
+
+      // Prevent calling PUT /admin/meetings/undefined
+      const hasMeetingId = Boolean(editingMeetingId && String(editingMeetingId).trim())
+      if (editingMeetingId && !hasMeetingId) {
+        throw new Error('Meeting id is missing. Please open the meeting and try update again.')
+      }
+
+      const response = await apiRequest(
+        hasMeetingId ? `/admin/meetings/${String(editingMeetingId).trim()}` : '/admin/meetings',
+        {
+          method: hasMeetingId ? 'PUT' : 'POST',
+          body: JSON.stringify(meetingForm),
+        }
+      )
+
       setMeetingForm(initialMeetingForm)
       setEditingMeetingId('')
-      showNotice(response.message || (editingMeetingId ? 'Meeting updated successfully.' : 'Meeting scheduled and message sent.'), 'meetings')
+      showNotice(
+        response.message || (hasMeetingId ? 'Meeting updated successfully.' : 'Meeting scheduled and message sent.'),
+        'meetings'
+      )
       await refreshOverview()
     } catch (requestError) {
       setError(requestError.message || 'Failed to schedule meeting')
